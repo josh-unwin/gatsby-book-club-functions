@@ -3,6 +3,29 @@ const admin = require('firebase-admin')
 
 admin.initializeApp();
 
+exports.createUserProfile = functions.https.onCall(async (data, context) => {
+  checkAuthentication(context);
+  dataValidator(data, { username: 'string' });
+
+  // This checks if the current user already has a username (public profile)
+  const userProfile = await admin.firestore().collection('user_profiles')
+    .where('user_id', '==', context.auth.uid).limit(1).get();
+    if (!userProfile.empty) {
+      throw new functions.https.HttpsError('already-exists', "This user already has a username.")
+    }
+
+  // The below checks if the entered username has already been taken
+  const existingProfile = await admin.firestore().collection('user_profiles').doc(data.username).get();
+  if (existingProfile.exists) {
+    throw new functions.https.HttpsError('already-exists', "This username already exists.")
+  }
+
+  return admin.firestore().collection('user_profiles').doc(data.username).set({
+    user_id: context.auth.uid
+  })
+});
+
+
 exports.postComment = functions.https.onCall((data, context) => {
   checkAuthentication(context);
   dataValidator(data, {
